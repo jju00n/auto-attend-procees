@@ -7,11 +7,11 @@ from bs4 import BeautifulSoup # HTML 파싱을 위한 라이브러리
 
 # --- AWS Lambda 환경 변수 ---
 # Lambda 함수의 구성 설정에서 반드시 세팅해야 합니다.
-INTRANET_LOGIN_URL = os.environ['INTRANET_LOGIN_URL']
-INTRANET_ATTEND_URL = os.environ['INTRANET_ATTEND_URL']
-INTRANET_VACATION_URL = os.environ['INTRANET_VACATION_URL'] # 휴가 페이지 URL
-USER_ID = os.environ['USER_ID']
-USER_PW = os.environ['USER_PW']
+INTRANET_LOGIN_URL = os.environ['https://intra.d2.co.kr/loginProc']
+INTRANET_ATTEND_URL = os.environ['https://intra.d2.co.kr/intra/remote-work/attend']
+INTRANET_VACATION_URL = os.environ['https://erp.d2.co.kr/Holiday/HolidayList.do'] # 휴가 페이지 URL
+USER_ID = os.environ['pobylee']
+USER_PW = os.environ['1234']
 BOT_TOKEN = os.environ['BOT_TOKEN']
 CHAT_ID = os.environ['CHAT_ID']
 HOLIDAY_API_KEY = os.environ['HOLIDAY_API_KEY']
@@ -41,7 +41,7 @@ def is_holiday(today_str):
         print(f"공휴일 API 호출 오류: {e}")
         return False
 
-def is_vacation_on_intranet(session, today_str):
+def is_vacation_on_intranet(session):
     """로그인된 세션을 이용해 인트라넷 휴가 페이지를 크롤링하여 휴가 여부를 확인합니다."""
     try:
         # 로그인된 세션으로 휴가 페이지에 접속
@@ -92,7 +92,7 @@ def run_clock_in_process(today_str):
         print("로그인 성공.")
         
         # 로그인 성공 후, 휴가 여부 확인
-        if is_vacation_on_intranet(session, today_str):
+        if is_vacation_on_intranet(session):
             return f"🌴 인트라넷에 휴가일({today_str})이 등록되어 있어 출근 체크를 건너뜁니다."
 
         # 휴가가 아니면 출근 체크 수행
