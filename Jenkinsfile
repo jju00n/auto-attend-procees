@@ -10,7 +10,10 @@ pipeline {
         stage('Checkout from GitHub') {
             steps {
                 echo 'GitHub 저장소에서 최신 코드를 가져옵니다.'
-                git branch: 'main', url: '[https://github.com/your-username/your-repo.git](https://github.com/your-username/your-repo.git)'
+                // 'github-credentials'는 Part 4-1-2에서 생성할 인증서의 ID입니다.
+                git branch: 'main', 
+                    credentialsId: 'github-credentials', 
+                    url: '[https://github.com/your-username/your-repo.git](https://github.com/your-username/your-repo.git)'
             }
         }
         stage('Test Code Integrity') {
