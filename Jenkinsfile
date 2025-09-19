@@ -19,7 +19,7 @@ pipeline {
                 sh '''
                     python3 -m venv venv
                     source venv/bin/activate
-                    pip install -r requirements.txt
+                    python3 -m pip install -r requirements.txt
                     python3 -m unittest test_lambda_function.py
                 '''
             }
@@ -30,7 +30,7 @@ pipeline {
                 sh '''
                     source venv/bin/activate
                     mkdir package
-                    pip install --target ./package -r requirements.txt
+                    python3 -m pip install --target ./package -r requirements.txt
                     cd package
                     zip -r ../${env.DEPLOY_PACKAGE_NAME} .
                     cd ..
