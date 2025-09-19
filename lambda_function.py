@@ -62,7 +62,7 @@ def is_vacation_on_intranet(session):
         #     return True
 
         # 예제 2: 페이지 전체 텍스트에서 '오늘: 연차' 와 같은 특정 문자열이 있는지 확인
-        if f"정기휴가" in soup.get_text():
+        if "정기휴가" in soup.get_text():
              return True
 
         # 예제 3: 'vacation_list'라는 id를 가진 목록에서 오늘 날짜가 포함된 항목 찾기
