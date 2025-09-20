@@ -1,16 +1,15 @@
-// Jenkinsfile
 pipeline {
     agent any
     environment {
         AWS_REGION = 'ap-northeast-2'
         LAMBDA_FUNCTION_NAME = 'auto-attendance-bot'
         DEPLOY_PACKAGE_NAME = 'deployment_package.zip'
+        PATH = "/usr/bin:$PATH"  // Python3가 있는 경로 추가
     }
     stages {
         stage('Checkout from GitHub') {
             steps {
                 echo 'GitHub 저장소에서 최신 코드를 가져옵니다.'
-                // 'github-credentials'는 Part 4-1-2에서 생성할 인증서의 ID입니다.
                 git branch: 'main', 
                     credentialsId: 'github-credentials', 
                     url: 'https://github.com/jju00n/auto-attend-procees.git'
