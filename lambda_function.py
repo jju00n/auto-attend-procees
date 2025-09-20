@@ -5,6 +5,7 @@ import telegram
 from datetime import datetime, timezone, timedelta
 from bs4 import BeautifulSoup
 
+# 주석 추가
 # --- AWS Lambda 환경 변수 (나중에 AWS 콘솔에서 설정) ---
 INTRANET_LOGIN_URL = os.environ['INTRANET_LOGIN_URL']
 INTRANET_ATTEND_URL = os.environ['INTRANET_ATTEND_URL']
