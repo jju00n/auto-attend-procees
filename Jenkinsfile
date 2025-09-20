@@ -61,6 +61,24 @@ pipeline {
                     zip -r ../$DEPLOY_PACKAGE_NAME .
                     cd ..
                     zip -g $DEPLOY_PACKAGE_NAME lambda_function.py
+
+                    # ZIP 파일 존재 확인
+                    if [ ! -f "$DEPLOY_PACKAGE_NAME" ]; then
+                        echo "ERROR: $DEPLOY_PACKAGE_NAME 파일이 존재하지 않습니다!"
+                        exit 1
+                    fi
+                '''
+            }
+        }
+
+        stage('Check Lambda Function') {
+            steps {
+                echo "Lambda 함수 [${env.LAMBDA_FUNCTION_NAME}] 존재 여부 확인"
+                sh '''
+                    aws lambda get-function --function-name ${LAMBDA_FUNCTION_NAME} --region ${AWS_REGION} || {
+                        echo "ERROR: Lambda 함수 ${LAMBDA_FUNCTION_NAME} 가 존재하지 않거나 접근 불가"
+                        exit 1
+                    }
                 '''
             }
         }
@@ -69,13 +87,16 @@ pipeline {
             steps {
                 echo "AWS Lambda 함수 [${env.LAMBDA_FUNCTION_NAME}]에 배포 시작"
                 sh '''
-            source venv/bin/activate
-            aws lambda update-function-code \
-                --function-name ${LAMBDA_FUNCTION_NAME} \
-                --zip-file fileb://${DEPLOY_PACKAGE_NAME} \
-                --region ${AWS_REGION}
-        '''
-                echo '배포 성공!'
+                    source venv/bin/activate
+                    aws lambda update-function-code \
+                        --function-name ${LAMBDA_FUNCTION_NAME} \
+                        --zip-file fileb://${DEPLOY_PACKAGE_NAME} \
+                        --region ${AWS_REGION} || {
+                            echo "ERROR: Lambda 업로드 실패"
+                            exit 1
+                        }
+                    echo '배포 성공!'
+                '''
             }
         }
     }
@@ -83,6 +104,12 @@ pipeline {
     post {
         always {
             echo '작업 공간 유지 (deleteDir 제거)'
+        }
+        failure {
+            echo '배포 실패! 로그를 확인하세요.'
+        }
+        success {
+            echo '전체 파이프라인 완료!'
         }
     }
 }
