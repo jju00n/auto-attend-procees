@@ -56,7 +56,7 @@ pipeline {
     post {
         always {
             echo '작업 공간을 정리합니다.'
-            deleteDir()
+            // deleteDir()
         }
     }
 }
