@@ -9,12 +9,11 @@ pipeline {
     }
 
     stages {
-
         stage('Checkout from GitHub') {
             steps {
                 echo 'GitHub 저장소에서 최신 코드를 가져옵니다.'
-                git branch: 'main', 
-                    credentialsId: 'github-credentials', 
+                git branch: 'main',
+                    credentialsId: 'github-credentials',
                     url: 'https://github.com/jju00n/auto-attend-procees.git'
             }
         }
@@ -68,13 +67,14 @@ pipeline {
 
         stage('Deploy to AWS Lambda') {
             steps {
-                echo "AWS Lambda 함수 [$LAMBDA_FUNCTION_NAME]에 배포 시작"
-                withAWS(credentials: 'aws-credentials-for-lambda', region: env.AWS_REGION) {
-                    lambdaUpdateFunction(
-                        functionName: env.LAMBDA_FUNCTION_NAME,
-                        zipFile: env.DEPLOY_PACKAGE_NAME
-                    )
-                }
+                echo "AWS Lambda 함수 [${env.LAMBDA_FUNCTION_NAME}]에 배포 시작"
+                sh '''
+            source venv/bin/activate
+            aws lambda update-function-code \
+                --function-name ${LAMBDA_FUNCTION_NAME} \
+                --zip-file fileb://${DEPLOY_PACKAGE_NAME} \
+                --region ${AWS_REGION}
+        '''
                 echo '배포 성공!'
             }
         }
