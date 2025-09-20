@@ -13,7 +13,7 @@ pipeline {
                 // 'github-credentials'는 Part 4-1-2에서 생성할 인증서의 ID입니다.
                 git branch: 'main', 
                     credentialsId: 'github-credentials', 
-                    url: '[https://github.com/your-username/your-repo.git](https://github.com/your-username/your-repo.git)'
+                    url: 'https://github.com/jju00n/auto-attend-procees.git'
             }
         }
         stage('Test Code Integrity') {
