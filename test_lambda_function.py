@@ -1,9 +1,9 @@
 import unittest
 from unittest.mock import patch, Mock
 import os
+from freezegun import freeze_time
 import datetime
 
-# 환경변수 설정
 os.environ['INTRANET_LOGIN_URL'] = 'http://fake-intranet.com/loginProc'
 os.environ['INTRANET_ATTEND_URL'] = 'http://fake-intranet.com/attend'
 os.environ['INTRANET_VACATION_URL'] = 'http://fake-intranet.com/vacation'
@@ -17,15 +17,11 @@ import lambda_function
 
 class TestLambdaFunction(unittest.TestCase):
 
-    # 항상 평일(2025-09-18, 목요일)로 날짜 강제
-    @patch('lambda_function.datetime')
+    @freeze_time("2025-09-18 10:00:00")  # 주중 평일로 강제
     @patch('lambda_function.requests.Session')
     @patch('lambda_function.send_telegram_message')
-    def test_lambda_handler_workday(self, mock_send_telegram, mock_session, mock_datetime):
-        mock_datetime.now.return_value = datetime.datetime(2025, 9, 18, 10, 0, 0)
-        mock_datetime.side_effect = lambda *args, **kwargs: datetime.datetime(*args, **kwargs)
-
-        # --- 가짜 응답 설정 ---
+    def test_lambda_handler_workday(self, mock_send_telegram, mock_session):
+        """ 평일 근무일 출근 체크 """
         mock_login_response = Mock()
         mock_login_response.status_code = 200
         mock_login_response.text = "메인 페이지입니다."
@@ -47,29 +43,25 @@ class TestLambdaFunction(unittest.TestCase):
         self.assertEqual(mock_send_telegram.call_count, 2)
         self.assertIn("✅ 출근 체크 성공!", mock_send_telegram.call_args[0][0])
 
-    @patch('lambda_function.datetime')
+    @freeze_time("2025-09-18 10:00:00")  # 평일로 강제
     @patch('lambda_function.send_telegram_message')
-    def test_lambda_handler_holiday(self, mock_send_telegram, mock_datetime):
-        mock_datetime.now.return_value = datetime.datetime(2025, 9, 18, 10, 0, 0)
-        mock_datetime.side_effect = lambda *args, **kwargs: datetime.datetime(*args, **kwargs)
-
+    def test_lambda_handler_holiday(self, mock_send_telegram):
+        """ 공휴일이면 출근 체크 건너뜀 """
         with patch('lambda_function.is_holiday', return_value=True):
             lambda_function.lambda_handler({}, {})
-
         self.assertEqual(mock_send_telegram.call_count, 1)
         self.assertIn("공휴일", mock_send_telegram.call_args[0][0])
 
-    @patch('lambda_function.datetime')
+    @freeze_time("2025-09-18 10:00:00")  # 평일로 강제
     @patch('lambda_function.requests.Session')
     @patch('lambda_function.send_telegram_message')
-    def test_lambda_handler_vacation(self, mock_send_telegram, mock_session, mock_datetime):
-        mock_datetime.now.return_value = datetime.datetime(2025, 9, 18, 10, 0, 0)
-        mock_datetime.side_effect = lambda *args, **kwargs: datetime.datetime(*args, **kwargs)
-
+    def test_lambda_handler_vacation(self, mock_send_telegram, mock_session):
+        """ 휴가일이면 출근 체크 건너뜀 """
         mock_login_response = Mock()
         mock_login_response.status_code = 200
         mock_login_response.text = "메인 페이지입니다."
 
+        # 오늘 날짜와 동일하게 휴가 등록
         today_str_dot = datetime.datetime.now().strftime('%Y.%m.%d')
         mock_html = f"""
         <html><body><table><tbody>
