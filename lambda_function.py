@@ -24,7 +24,7 @@ def is_holiday(today_str):
     """공공데이터포털 API를 이용해 오늘이 공휴일인지 확인하는 함수"""
     try:
         year = today_str[:4]
-        url = f"[http://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getRestDeInfo?serviceKey=](http://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getRestDeInfo?serviceKey=){HOLIDAY_API_KEY}&solYear={year}&_type=json&numOfRows=100"
+        url = f"http://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getRestDeInfo?serviceKey={HOLIDAY_API_KEY}&solYear={year}&_type=json&numOfRows=100"
         response = requests.get(url, timeout=10)
         items = response.json().get('response', {}).get('body', {}).get('items', {}).get('item', [])
         holiday_dates = [str(item['locdate']) for item in items]
