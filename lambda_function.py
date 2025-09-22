@@ -78,26 +78,38 @@ def run_clock_in_process(today_str):
     """로그인, 휴가 확인, 출근 체크를 순차적으로 실행하는 메인 프로세스"""
     try:
         session = requests.Session()
-        login_data = {'d2id': USER_ID, 'd2pass': USER_PW}
+        
+        # 1. (수정됨) 데이터의 KEY를 HTML의 name 속성과 대소문자까지 정확히 일치시킵니다.
+        login_data = {'d2Id': USER_ID, 'd2Pass': USER_PW}
+        
         login_res = session.post(INTRANET_LOGIN_URL, data=login_data)
         print("로그인 응답 코드:", login_res.status_code)
-        print("로그인 응답 텍스트:", login_res.text)
+        # print("로그인 응답 텍스트:", login_res.text) # 디버깅 시에만 활성화
         login_res.raise_for_status()
-        if "로그인" in login_res.text or "Login" in login_res.text:
+
+        # 2. (수정됨) 성공/실패 확인 로직을 변경합니다.
+        # 실패 조건: 응답에 메인 페이지('/')로 이동하라는 스크립트가 없는 경우
+        if "document.location.href='/'" not in login_res.text:
             return "❌ 출근 체크 실패!\n이유: 로그인에 실패했습니다. 아이디/비밀번호를 확인하세요."
+        
+        print("✅ 로그인 성공!")
 
         if is_vacation_on_intranet(session, today_str):
             return f"🌴 인트라넷에 휴가일({today_str})로 확인되어 출근 체크를 건너뜁니다."
 
         attend_res = session.post(INTRANET_ATTEND_URL)
         print("출근 등록 응답 코드:", attend_res.status_code)
-        print("출근 등록 응답 텍스트:", attend_res.text)
+        # print("출근 등록 응답 텍스트:", attend_res.text) # 디버깅 시에만 활성화
         attend_res.raise_for_status()
+        
         result_json = attend_res.json()
         if result_json.get('status') == 'success':
             return "✅ 출근 체크 성공!"
         else:
             return f"❌ 출근 체크 실패!\n서버 메시지: {result_json.get('msg', '알 수 없는 오류')}"
+            
+    except requests.exceptions.RequestException as e:
+        return f"❌ 출근 체크 실패!\n이유: 네트워크 오류가 발생했습니다. ({e})"
     except Exception as e:
         return f"❌ 출근 체크 실패!\n오류 발생: {e}"
 
