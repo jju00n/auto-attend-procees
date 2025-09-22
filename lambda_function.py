@@ -2,9 +2,9 @@ import json
 import os
 import requests
 import telegram
+import asyncio
 from datetime import datetime, timezone, timedelta
 from bs4 import BeautifulSoup
-
 
 # --- AWS Lambda 환경 변수 (나중에 AWS 콘솔에서 설정) ---
 INTRANET_LOGIN_URL = os.environ['INTRANET_LOGIN_URL']
@@ -17,21 +17,28 @@ CHAT_ID = os.environ['CHAT_ID']
 HOLIDAY_API_KEY = os.environ['HOLIDAY_API_KEY']
 
 def send_telegram_message(text):
-    """텔레그램으로 메시지를 보내는 함수"""
+    """텔레그램으로 메시지를 보내는 함수 (최신 비동기 방식)"""
     bot = telegram.Bot(token=BOT_TOKEN)
-    bot.sendMessage(chat_id=CHAT_ID, text=text)
+    asyncio.run(bot.send_message(chat_id=CHAT_ID, text=text))
 
 def is_holiday(today_str):
     """공공데이터포털 API를 이용해 오늘이 공휴일인지 확인하는 함수"""
+    response = None
     try:
         year = today_str[:4]
         url = f"http://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getRestDeInfo?serviceKey={HOLIDAY_API_KEY}&solYear={year}&_type=json&numOfRows=100"
         response = requests.get(url, timeout=10)
+        print(f"Requesting Holiday API URL: {url}") # 디버깅을 위해 URL 출력
+        response = requests.get(url, timeout=10)
+        response.raise_for_status() # HTTP 에러가 있으면 예외 발생
+
         items = response.json().get('response', {}).get('body', {}).get('items', {}).get('item', [])
         holiday_dates = [str(item['locdate']) for item in items]
         return today_str.replace("-", "") in holiday_dates
     except Exception as e:
         print(f"공휴일 API 호출 오류: {e}")
+        if response is not None:
+            print(f"Raw API Response Text: {response.text}") # 디버깅을 위해 실제 응답 내용 출력
         return False
 
 def is_vacation_on_intranet(session, today_str):
