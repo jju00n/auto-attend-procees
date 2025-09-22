@@ -27,7 +27,6 @@ def is_holiday(today_str):
     try:
         year = today_str[:4]
         url = f"http://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getRestDeInfo?serviceKey={HOLIDAY_API_KEY}&solYear={year}&_type=json&numOfRows=100"
-        response = requests.get(url, timeout=10)
         print(f"Requesting Holiday API URL: {url}") # 디버깅을 위해 URL 출력
         response = requests.get(url, timeout=10)
         response.raise_for_status() # HTTP 에러가 있으면 예외 발생
@@ -81,6 +80,8 @@ def run_clock_in_process(today_str):
         session = requests.Session()
         login_data = {'d2id': USER_ID, 'd2pass': USER_PW}
         login_res = session.post(INTRANET_LOGIN_URL, data=login_data)
+        print("로그인 응답 코드:", login_res.status_code)
+        print("로그인 응답 텍스트:", login_res.text)
         login_res.raise_for_status()
         if "로그인" in login_res.text or "Login" in login_res.text:
             return "❌ 출근 체크 실패!\n이유: 로그인에 실패했습니다. 아이디/비밀번호를 확인하세요."
@@ -89,6 +90,8 @@ def run_clock_in_process(today_str):
             return f"🌴 인트라넷에 휴가일({today_str})로 확인되어 출근 체크를 건너뜁니다."
 
         attend_res = session.post(INTRANET_ATTEND_URL)
+        print("출근 등록 응답 코드:", attend_res.status_code)
+        print("출근 등록 응답 텍스트:", attend_res.text)
         attend_res.raise_for_status()
         result_json = attend_res.json()
         if result_json.get('status') == 'success':
