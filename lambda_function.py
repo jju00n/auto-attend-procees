@@ -84,7 +84,7 @@ def run_clock_in_process(today_str):
         
         login_res = session.post(INTRANET_LOGIN_URL, data=login_data)
         print("로그인 응답 코드:", login_res.status_code)
-        # print("로그인 응답 텍스트:", login_res.text) # 디버깅 시에만 활성화
+        print("로그인 응답 텍스트:", login_res.text) # 디버깅 시에만 활성화
         login_res.raise_for_status()
 
         # 2. (수정됨) 성공/실패 확인 로직을 변경합니다.
