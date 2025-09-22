@@ -16,7 +16,6 @@ BOT_TOKEN = os.environ['BOT_TOKEN']
 CHAT_ID = os.environ['CHAT_ID']
 HOLIDAY_API_KEY = os.environ['HOLIDAY_API_KEY']
 
-# 주석 테스트 #
 def send_telegram_message(text):
     """텔레그램으로 메시지를 보내는 함수 (최신 비동기 방식)"""
     bot = telegram.Bot(token=BOT_TOKEN)
