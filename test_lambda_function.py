@@ -60,19 +60,36 @@ class TestLambdaFunction(unittest.TestCase):
     @patch('lambda_function.requests.Session')
     @patch('lambda_function.send_telegram_message')
     def test_lambda_handler_vacation(self, mock_send_telegram, mock_session):
-        """ 휴가일이면 출근 체크 건너뜀 """
+        """ 휴가일이면 출근 체크 건너뜀 (수정됨) """
         mock_login_response = Mock()
         mock_login_response.status_code = 200
-        # (수정됨) 실제 코드가 기대하는 로그인 성공 응답으로 변경
         mock_login_response.text = "<html><script>document.location.href='/'</script></html>"
 
-        # 오늘 날짜와 동일하게 휴가 등록
         today_str_dot = datetime.datetime.now().strftime('%Y.%m.%d')
+
+        # --- 👇 이 부분이 수정되었습니다 ---
+        # 실제 크롤링 함수가 기대하는 HTML 구조와 동일하게 변경합니다.
         mock_html = f"""
-        <html><body><table><tbody>
-          <tr><td>정기휴가</td><td>{today_str_dot}</td><td>{today_str_dot}</td><td>1.0일</td></tr>
-        </tbody></table></body></html>
+        <html>
+            <body>
+                <h2>연차사용 내역</h2>
+                
+                <table>
+                    <tbody>
+                        <tr>
+                            <td>1</td> 
+                            <td>정기휴가</td>
+                            <td>{today_str_dot}</td>
+                            <td>{today_str_dot}</td>
+                            <td>1.0일</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </body>
+        </html>
         """
+        # --- 👆 수정 끝 ---
+
         mock_vacation_response = Mock()
         mock_vacation_response.status_code = 200
         mock_vacation_response.text = mock_html
@@ -82,8 +99,12 @@ class TestLambdaFunction(unittest.TestCase):
 
         with patch('lambda_function.is_holiday', return_value=False):
             lambda_function.lambda_handler({}, {})
+        
+        # 최종적으로 "휴가일" 메시지가 텔레그램으로 전송되었는지 확인
+        # 'call_args'의 구조에 따라 인덱싱이 다를 수 있습니다. (e.g., call_args.args[0])
+        final_message = mock_send_telegram.call_args_list[-1][0][0]
+        self.assertIn("휴가일", final_message)
 
-        self.assertIn("휴가일", mock_send_telegram.call_args[0][0])
 
 if __name__ == '__main__':
     unittest.main()
