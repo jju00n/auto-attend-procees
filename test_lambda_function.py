@@ -15,16 +15,39 @@ os.environ['HOLIDAY_API_KEY'] = 'fake_api_key'
 
 import lambda_function
 
+VACATION_HTML_EMPTY = """
+<html><body>
+  <h2 class="sub_tit mt30 mt20">연차사용 내역</h2>
+  <div class="table_h2">
+    <table><thead><tr><th>번호</th><th>휴가구분</th><th>시작일</th><th>종료일</th><th>사용일</th></tr></thead>
+    <tbody></tbody></table>
+  </div>
+</body></html>
+"""
+
+def make_vacation_html(vacation_type, start_date, end_date):
+    return f"""
+<html><body>
+  <h2 class="sub_tit mt30 mt20">연차사용 내역</h2>
+  <div class="table_h2">
+    <table><thead><tr><th>번호</th><th>휴가구분</th><th>시작일</th><th>종료일</th><th>사용일</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>{vacation_type}</td><td>{start_date}</td><td>{end_date}</td><td>1.0일</td></tr>
+    </tbody></table>
+  </div>
+</body></html>
+"""
+
 class TestLambdaFunction(unittest.TestCase):
 
-    @freeze_time("2025-09-18 10:00:00")  # 주중 평일로 강제
+    @freeze_time("2025-09-18 10:00:00")
     @patch('lambda_function.requests.Session')
     @patch('lambda_function.send_telegram_message')
     def test_lambda_handler_workday(self, mock_send_telegram, mock_session):
-        """ 평일 근무일 출근 체크 """
+        """평일 근무일 출근 체크 성공"""
         mock_login_response = Mock()
         mock_login_response.status_code = 200
-        mock_login_response.text = "메인 페이지입니다."
+        mock_login_response.url = "https://erp.d2.co.kr/main"
 
         mock_attend_response = Mock()
         mock_attend_response.status_code = 200
@@ -32,7 +55,7 @@ class TestLambdaFunction(unittest.TestCase):
 
         mock_vacation_response = Mock()
         mock_vacation_response.status_code = 200
-        mock_vacation_response.text = "<html><body><table><tbody></tbody></table></body></html>"
+        mock_vacation_response.text = VACATION_HTML_EMPTY
 
         mock_session.return_value.post.side_effect = [mock_login_response, mock_attend_response]
         mock_session.return_value.get.return_value = mock_vacation_response
@@ -43,34 +66,39 @@ class TestLambdaFunction(unittest.TestCase):
         self.assertEqual(mock_send_telegram.call_count, 2)
         self.assertIn("✅ 출근 체크 성공!", mock_send_telegram.call_args[0][0])
 
-    @freeze_time("2025-09-18 10:00:00")  # 평일로 강제
+    @freeze_time("2025-09-18 10:00:00")
     @patch('lambda_function.send_telegram_message')
     def test_lambda_handler_holiday(self, mock_send_telegram):
-        """ 공휴일이면 출근 체크 건너뜀 """
+        """공휴일이면 출근 체크 건너뜀"""
         with patch('lambda_function.is_holiday', return_value=True):
             lambda_function.lambda_handler({}, {})
+
         self.assertEqual(mock_send_telegram.call_count, 1)
         self.assertIn("공휴일", mock_send_telegram.call_args[0][0])
 
-    @freeze_time("2025-09-18 10:00:00")  # 평일로 강제
+    @freeze_time("2025-09-18 10:00:00")
+    @patch('lambda_function.send_telegram_message')
+    def test_lambda_handler_holiday_api_failure(self, mock_send_telegram):
+        """공휴일 API 실패 시 텔레그램 경고 후 출근 체크 중단"""
+        with patch('lambda_function.is_holiday', side_effect=Exception("API 오류")):
+            lambda_function.lambda_handler({}, {})
+
+        self.assertEqual(mock_send_telegram.call_count, 1)
+        self.assertIn("공휴일 API 호출 실패", mock_send_telegram.call_args[0][0])
+
+    @freeze_time("2025-09-18 10:00:00")
     @patch('lambda_function.requests.Session')
     @patch('lambda_function.send_telegram_message')
     def test_lambda_handler_vacation(self, mock_send_telegram, mock_session):
-        """ 휴가일이면 출근 체크 건너뜀 """
+        """정기휴가일이면 출근 체크 건너뜀"""
         mock_login_response = Mock()
         mock_login_response.status_code = 200
-        mock_login_response.text = "메인 페이지입니다."
+        mock_login_response.url = "https://erp.d2.co.kr/main"
 
-        # 오늘 날짜와 동일하게 휴가 등록
         today_str_dot = datetime.datetime.now().strftime('%Y.%m.%d')
-        mock_html = f"""
-        <html><body><table><tbody>
-          <tr><td>정기휴가</td><td>{today_str_dot}</td><td>{today_str_dot}</td><td>1.0일</td></tr>
-        </tbody></table></body></html>
-        """
         mock_vacation_response = Mock()
         mock_vacation_response.status_code = 200
-        mock_vacation_response.text = mock_html
+        mock_vacation_response.text = make_vacation_html("정기휴가", today_str_dot, today_str_dot)
 
         mock_session.return_value.post.return_value = mock_login_response
         mock_session.return_value.get.return_value = mock_vacation_response
@@ -80,6 +108,33 @@ class TestLambdaFunction(unittest.TestCase):
 
         self.assertEqual(mock_send_telegram.call_count, 2)
         self.assertIn("휴가일", mock_send_telegram.call_args[0][0])
+
+    @freeze_time("2025-09-18 10:00:00")
+    @patch('lambda_function.requests.Session')
+    @patch('lambda_function.send_telegram_message')
+    def test_lambda_handler_login_failure(self, mock_send_telegram, mock_session):
+        """로그인 실패 시 에러 메시지 전송"""
+        mock_login_response = Mock()
+        mock_login_response.status_code = 200
+        mock_login_response.url = "https://intra.d2.co.kr/login"
+
+        mock_session.return_value.post.return_value = mock_login_response
+
+        with patch('lambda_function.is_holiday', return_value=False):
+            lambda_function.lambda_handler({}, {})
+
+        self.assertEqual(mock_send_telegram.call_count, 2)
+        self.assertIn("로그인에 실패", mock_send_telegram.call_args[0][0])
+
+    @patch('lambda_function.telegram.Bot')
+    def test_send_telegram_failure(self, mock_bot):
+        """텔레그램 전송 실패 시 예외 없이 로그만 출력"""
+        mock_bot.return_value.sendMessage.side_effect = Exception("텔레그램 오류")
+
+        try:
+            lambda_function.send_telegram_message("테스트 메시지")
+        except Exception:
+            self.fail("텔레그램 실패 시 예외가 발생하면 안 됩니다.")
 
 if __name__ == '__main__':
     unittest.main()

@@ -1,0 +1,61 @@
+name: Deploy to AWS Lambda
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  AWS_REGION: ap-northeast-2
+  LAMBDA_FUNCTION_NAME: auto-attendance-bot
+  DEPLOY_PACKAGE_NAME: deployment_package.zip
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Python 설치
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 의존성 설치
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: 단위 테스트 실행
+        run: |
+          python -m unittest test_lambda_function.py
+
+      - name: 배포 패키지 생성
+        run: |
+          mkdir -p package
+          pip install --target ./package -r requirements.txt
+          cd package && zip -r ../${{ env.DEPLOY_PACKAGE_NAME }} . && cd ..
+          zip -g ${{ env.DEPLOY_PACKAGE_NAME }} lambda_function.py
+
+      - name: AWS 자격증명 설정
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Lambda 함수 존재 여부 확인
+        run: |
+          aws lambda get-function --function-name ${{ env.LAMBDA_FUNCTION_NAME }} || {
+            echo "ERROR: Lambda 함수가 존재하지 않거나 접근 불가"
+            exit 1
+          }
+
+      - name: Lambda 배포
+        run: |
+          aws lambda update-function-code \
+            --function-name ${{ env.LAMBDA_FUNCTION_NAME }} \
+            --zip-file fileb://${{ env.DEPLOY_PACKAGE_NAME }}
+          echo "배포 성공!"

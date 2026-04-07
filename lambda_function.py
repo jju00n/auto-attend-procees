@@ -18,55 +18,46 @@ HOLIDAY_API_KEY = os.environ['HOLIDAY_API_KEY']
 
 def send_telegram_message(text):
     """텔레그램으로 메시지를 보내는 함수"""
-    bot = telegram.Bot(token=BOT_TOKEN)
-    bot.sendMessage(chat_id=CHAT_ID, text=text)
+    try:
+        bot = telegram.Bot(token=BOT_TOKEN)
+        bot.sendMessage(chat_id=CHAT_ID, text=text)
+    except Exception as e:
+        print(f"[WARN] 텔레그램 알림 전송 실패: {e}")
 
 def is_holiday(today_str):
     """공공데이터포털 API를 이용해 오늘이 공휴일인지 확인하는 함수"""
-    try:
-        year = today_str[:4]
-        url = f"http://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getRestDeInfo?serviceKey={HOLIDAY_API_KEY}&solYear={year}&_type=json&numOfRows=100"
-        response = requests.get(url, timeout=10)
-        items = response.json().get('response', {}).get('body', {}).get('items', {}).get('item', [])
-        holiday_dates = [str(item['locdate']) for item in items]
-        return today_str.replace("-", "") in holiday_dates
-    except Exception as e:
-        print(f"공휴일 API 호출 오류: {e}")
-        return False
+    year = today_str[:4]
+    url = f"http://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getRestDeInfo?serviceKey={HOLIDAY_API_KEY}&solYear={year}&_type=json&numOfRows=100"
+    response = requests.get(url, timeout=10)
+    response.raise_for_status()
+    items = response.json().get('response', {}).get('body', {}).get('items', {}).get('item', [])
+    holiday_dates = [str(item['locdate']) for item in items]
+    return today_str.replace("-", "") in holiday_dates
 
 def is_vacation_on_intranet(session, today_str):
     """인트라넷 휴가 페이지를 크롤링하여 오늘이 휴가일인지 확인하는 함수"""
-    try:
-        response = session.get(INTRANET_VACATION_URL)
-        response.raise_for_status()
-        soup = BeautifulSoup(response.text, 'html.parser')
-        # 오늘 날짜를 datetime 객체로 변환 (비교를 위해)
-        today_date = datetime.strptime(today_str, '%Y-%m-%d').date()
-        # "연차사용 내역" 테이블을 찾습니다.
-        tables = soup.find_all('table')
-        for table in tables:
-            # 테이블의 각 행(row)을 순회합니다. (헤더는 건너뜁니다)
-            for row in table.find('tbody').find_all('tr'):
-                # 각 행의 열(column) 데이터를 리스트로 추출합니다.
-                cols = [ele.text.strip() for ele in row.find_all('td')]
-                # 열의 개수가 충분한지 확인하여 오류를 방지합니다.
-                if len(cols) > 3:
-                    vacation_type = cols[0]  # 휴가구분 (이미지상 첫번째 열)
-                    start_date_str = cols[1] # 시작일 (이미지상 두번째 열)
-                    end_date_str = cols[2]   # 종료일 (이미지상 세번째 열)
-                    # 휴가 구분이 '정기휴가'인지 확인합니다.
-                    if '정기휴가' in vacation_type:
-                        # 날짜 문자열(YYYY.MM.DD)을 datetime 객체로 변환합니다.
-                        start_date = datetime.strptime(start_date_str, '%Y.%m.%d').date()
-                        end_date = datetime.strptime(end_date_str, '%Y.%m.%d').date()
-                        # 오늘 날짜가 휴가 기간에 포함되는지 확인합니다.
-                        if start_date <= today_date <= end_date:
-                            return True # 휴가일이 맞으므로 True를 반환하고 함수를 종료합니다.
-        # 모든 휴가 기록을 확인했지만 해당 사항이 없으면 False를 반환합니다.
-        return False
-    except Exception as e:
-        print(f"휴가 크롤링 오류: {e}")
-        return False
+    response = session.get(INTRANET_VACATION_URL)
+    response.raise_for_status()
+    soup = BeautifulSoup(response.text, 'html.parser')
+    today_date = datetime.strptime(today_str, '%Y-%m-%d').date()
+
+    header = soup.find('h2', string=lambda t: t and '연차사용 내역' in t)
+    if not header:
+        raise ValueError("'연차사용 내역' 테이블을 찾을 수 없습니다. 페이지 구조가 변경되었을 수 있습니다.")
+
+    table = header.find_next('table')
+    for row in table.find('tbody').find_all('tr'):
+        cols = [ele.text.strip() for ele in row.find_all('td')]
+        if len(cols) > 3:
+            vacation_type = cols[1]   # 휴가구분
+            start_date_str = cols[2]  # 시작일
+            end_date_str = cols[3]    # 종료일
+            if '정기휴가' in vacation_type:
+                start_date = datetime.strptime(start_date_str, '%Y.%m.%d').date()
+                end_date = datetime.strptime(end_date_str, '%Y.%m.%d').date()
+                if start_date <= today_date <= end_date:
+                    return True
+    return False
 
 def run_clock_in_process(today_str):
     """로그인, 휴가 확인, 출근 체크를 순차적으로 실행하는 메인 프로세스"""
@@ -75,7 +66,7 @@ def run_clock_in_process(today_str):
         login_data = {'d2id': USER_ID, 'd2pass': USER_PW}
         login_res = session.post(INTRANET_LOGIN_URL, data=login_data)
         login_res.raise_for_status()
-        if "로그인" in login_res.text or "Login" in login_res.text:
+        if "/login" in login_res.url:
             return "❌ 출근 체크 실패!\n이유: 로그인에 실패했습니다. 아이디/비밀번호를 확인하세요."
 
         if is_vacation_on_intranet(session, today_str):
@@ -100,9 +91,12 @@ def lambda_handler(event, context):
         print(f"주말({today_str})이므로 건너뜁니다.")
         return
 
-    if is_holiday(today_str):
-        message = f"🇰🇷 오늘은 공휴일({today_str})이므로 출근 체크를 건너뜁니다."
-        send_telegram_message(message)
+    try:
+        if is_holiday(today_str):
+            send_telegram_message(f"🇰🇷 오늘은 공휴일({today_str})이므로 출근 체크를 건너뜁니다.")
+            return
+    except Exception as e:
+        send_telegram_message(f"⚠️ 공휴일 API 호출 실패: {e}\n불확실한 상태이므로 출근 체크를 중단합니다. 수동으로 확인해주세요.")
         return
 
     send_telegram_message(f"⏰ 근무일({today_str})입니다. 자동 출근 체크를 시작합니다.")
