@@ -2,6 +2,7 @@ import json
 import os
 import requests
 import telegram
+import asyncio
 from datetime import datetime, timezone, timedelta
 from bs4 import BeautifulSoup
 
@@ -20,7 +21,7 @@ def send_telegram_message(text):
     """텔레그램으로 메시지를 보내는 함수"""
     try:
         bot = telegram.Bot(token=BOT_TOKEN)
-        bot.sendMessage(chat_id=CHAT_ID, text=text)
+        asyncio.run(bot.send_message(chat_id=CHAT_ID, text=text))
     except Exception as e:
         print(f"[WARN] 텔레그램 알림 전송 실패: {e}")
 
@@ -53,17 +54,21 @@ def is_vacation_on_intranet(session, today_str):
             start_date_str = cols[2]  # 시작일
             end_date_str = cols[3]    # 종료일
             if '정기휴가' in vacation_type:
-                start_date = datetime.strptime(start_date_str, '%Y.%m.%d').date()
-                end_date = datetime.strptime(end_date_str, '%Y.%m.%d').date()
-                if start_date <= today_date <= end_date:
-                    return True
+                try:
+                    start_date = datetime.strptime(start_date_str, '%Y.%m.%d').date()
+                    end_date = datetime.strptime(end_date_str, '%Y.%m.%d').date()
+                    if start_date <= today_date <= end_date:
+                        return True
+                except ValueError:
+                    print(f"[WARN] 날짜 변환 실패: {start_date_str}, {end_date_str}")
+                    continue
     return False
 
 def run_clock_in_process(today_str):
     """로그인, 휴가 확인, 출근 체크를 순차적으로 실행하는 메인 프로세스"""
     try:
         session = requests.Session()
-        login_data = {'d2id': USER_ID, 'd2pass': USER_PW}
+        login_data = {'d2Id': USER_ID, 'd2Pass': USER_PW}
         login_res = session.post(INTRANET_LOGIN_URL, data=login_data)
         login_res.raise_for_status()
         if "/login" in login_res.url:
@@ -79,6 +84,8 @@ def run_clock_in_process(today_str):
             return "✅ 출근 체크 성공!"
         else:
             return f"❌ 출근 체크 실패!\n서버 메시지: {result_json.get('msg', '알 수 없는 오류')}"
+    except requests.exceptions.RequestException as e:
+        return f"❌ 출근 체크 실패!\n이유: 네트워크 오류가 발생했습니다. ({e})"
     except Exception as e:
         return f"❌ 출근 체크 실패!\n오류 발생: {e}"
 

@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import patch, Mock
+from unittest.mock import patch, Mock, AsyncMock
 import os
 from freezegun import freeze_time
 import datetime
@@ -129,7 +129,7 @@ class TestLambdaFunction(unittest.TestCase):
     @patch('lambda_function.telegram.Bot')
     def test_send_telegram_failure(self, mock_bot):
         """텔레그램 전송 실패 시 예외 없이 로그만 출력"""
-        mock_bot.return_value.sendMessage.side_effect = Exception("텔레그램 오류")
+        mock_bot.return_value.send_message = AsyncMock(side_effect=Exception("텔레그램 오류"))
 
         try:
             lambda_function.send_telegram_message("테스트 메시지")
