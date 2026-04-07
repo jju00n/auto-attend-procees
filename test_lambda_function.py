@@ -136,5 +136,85 @@ class TestLambdaFunction(unittest.TestCase):
         except Exception:
             self.fail("텔레그램 실패 시 예외가 발생하면 안 됩니다.")
 
+    # ── 엣지 케이스 ──────────────────────────────────────────
+
+    @freeze_time("2025-09-18 10:00:00")
+    @patch('lambda_function.requests.get')
+    @patch('lambda_function.send_telegram_message')
+    def test_holiday_api_invalid_json(self, mock_send_telegram, mock_requests_get):
+        """공휴일 API 응답은 왔지만 JSON 파싱 실패 시 출근 체크 중단"""
+        mock_response = Mock()
+        mock_response.raise_for_status = Mock()
+        mock_response.json.side_effect = Exception("JSON 파싱 오류")
+        mock_requests_get.return_value = mock_response
+
+        lambda_function.lambda_handler({}, {})
+
+        self.assertEqual(mock_send_telegram.call_count, 1)
+        self.assertIn("공휴일 API 호출 실패", mock_send_telegram.call_args[0][0])
+
+    @freeze_time("2025-09-18 10:00:00")
+    @patch('lambda_function.requests.Session')
+    @patch('lambda_function.send_telegram_message')
+    def test_vacation_invalid_date_format(self, mock_send_telegram, mock_session):
+        """휴가 테이블 날짜 형식이 올바르지 않아도 출근 체크는 진행"""
+        mock_login_response = Mock()
+        mock_login_response.status_code = 200
+        mock_login_response.url = "https://erp.d2.co.kr/main"
+
+        mock_vacation_response = Mock()
+        mock_vacation_response.status_code = 200
+        mock_vacation_response.text = make_vacation_html("정기휴가", "2025/09/18", "2025/09/18")  # 잘못된 형식
+
+        mock_attend_response = Mock()
+        mock_attend_response.status_code = 200
+        mock_attend_response.json.return_value = {'status': 'success'}
+
+        mock_session.return_value.post.side_effect = [mock_login_response, mock_attend_response]
+        mock_session.return_value.get.return_value = mock_vacation_response
+
+        with patch('lambda_function.is_holiday', return_value=False):
+            lambda_function.lambda_handler({}, {})
+
+        self.assertIn("✅ 출근 체크 성공!", mock_send_telegram.call_args[0][0])
+
+    @freeze_time("2025-09-18 10:00:00")
+    @patch('lambda_function.requests.Session')
+    @patch('lambda_function.send_telegram_message')
+    def test_attend_api_unexpected_response(self, mock_send_telegram, mock_session):
+        """출근 체크 API 응답에 status 키가 없는 경우 실패 메시지 전송"""
+        mock_login_response = Mock()
+        mock_login_response.status_code = 200
+        mock_login_response.url = "https://erp.d2.co.kr/main"
+
+        mock_attend_response = Mock()
+        mock_attend_response.status_code = 200
+        mock_attend_response.json.return_value = {'result': 'ok'}  # status 키 없음
+
+        mock_vacation_response = Mock()
+        mock_vacation_response.status_code = 200
+        mock_vacation_response.text = VACATION_HTML_EMPTY
+
+        mock_session.return_value.post.side_effect = [mock_login_response, mock_attend_response]
+        mock_session.return_value.get.return_value = mock_vacation_response
+
+        with patch('lambda_function.is_holiday', return_value=False):
+            lambda_function.lambda_handler({}, {})
+
+        self.assertIn("❌ 출근 체크 실패!", mock_send_telegram.call_args[0][0])
+
+    @freeze_time("2025-09-18 10:00:00")
+    @patch('lambda_function.requests.Session')
+    @patch('lambda_function.send_telegram_message')
+    def test_network_timeout(self, mock_send_telegram, mock_session):
+        """네트워크 타임아웃 발생 시 실패 메시지 전송"""
+        import requests as req
+        mock_session.return_value.post.side_effect = req.exceptions.Timeout("타임아웃")
+
+        with patch('lambda_function.is_holiday', return_value=False):
+            lambda_function.lambda_handler({}, {})
+
+        self.assertIn("❌ 출근 체크 실패!", mock_send_telegram.call_args[0][0])
+
 if __name__ == '__main__':
     unittest.main()
