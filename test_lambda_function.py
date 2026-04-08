@@ -47,7 +47,7 @@ class TestLambdaFunction(unittest.TestCase):
         """평일 근무일 출근 체크 성공"""
         mock_login_response = Mock()
         mock_login_response.status_code = 200
-        mock_login_response.url = "https://erp.d2.co.kr/main"
+        mock_login_response.text = "<html>메인 페이지</html>"
 
         mock_attend_response = Mock()
         mock_attend_response.status_code = 200
@@ -93,7 +93,7 @@ class TestLambdaFunction(unittest.TestCase):
         """정기휴가일이면 출근 체크 건너뜀"""
         mock_login_response = Mock()
         mock_login_response.status_code = 200
-        mock_login_response.url = "https://erp.d2.co.kr/main"
+        mock_login_response.text = "<html>메인 페이지</html>"
 
         today_str_dot = datetime.datetime.now().strftime('%Y.%m.%d')
         mock_vacation_response = Mock()
@@ -116,7 +116,7 @@ class TestLambdaFunction(unittest.TestCase):
         """로그인 실패 시 에러 메시지 전송"""
         mock_login_response = Mock()
         mock_login_response.status_code = 200
-        mock_login_response.url = "https://intra.d2.co.kr/login"
+        mock_login_response.text = "<html><body>로그인 페이지</body></html>"
 
         mock_session.return_value.post.return_value = mock_login_response
 
@@ -160,7 +160,7 @@ class TestLambdaFunction(unittest.TestCase):
         """휴가 테이블 날짜 형식이 올바르지 않아도 출근 체크는 진행"""
         mock_login_response = Mock()
         mock_login_response.status_code = 200
-        mock_login_response.url = "https://erp.d2.co.kr/main"
+        mock_login_response.text = "<html>메인 페이지</html>"
 
         mock_vacation_response = Mock()
         mock_vacation_response.status_code = 200
@@ -185,7 +185,7 @@ class TestLambdaFunction(unittest.TestCase):
         """출근 체크 API 응답에 status 키가 없는 경우 실패 메시지 전송"""
         mock_login_response = Mock()
         mock_login_response.status_code = 200
-        mock_login_response.url = "https://erp.d2.co.kr/main"
+        mock_login_response.text = "<html>메인 페이지</html>"
 
         mock_attend_response = Mock()
         mock_attend_response.status_code = 200

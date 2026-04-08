@@ -71,7 +71,7 @@ def run_clock_in_process(today_str):
         login_data = {'d2Id': USER_ID, 'd2Pass': USER_PW}
         login_res = session.post(INTRANET_LOGIN_URL, data=login_data)
         login_res.raise_for_status()
-        if "/login" in login_res.url:
+        if "로그인" in login_res.text or "Login" in login_res.text:
             return "❌ 출근 체크 실패!\n이유: 로그인에 실패했습니다. 아이디/비밀번호를 확인하세요."
 
         if is_vacation_on_intranet(session, today_str):
