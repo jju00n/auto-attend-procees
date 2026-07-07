@@ -154,6 +154,39 @@ class TestLambdaFunction(unittest.TestCase):
         self.assertIn("공휴일 API 호출 실패", mock_send_telegram.call_args[0][0])
 
     @freeze_time("2025-09-18 10:00:00")
+    @patch('lambda_function.requests.get')
+    def test_holiday_api_retry_success(self, mock_requests_get):
+        """공휴일 API가 2번 타임아웃 후 3번째에 성공하면 재시도로 결과 반환"""
+        import requests as req
+        mock_success = Mock()
+        mock_success.raise_for_status = Mock()
+        mock_success.json.return_value = {
+            'response': {'body': {'items': {'item': [{'locdate': 20250918}]}}}
+        }
+        mock_requests_get.side_effect = [
+            req.exceptions.Timeout("타임아웃 1"),
+            req.exceptions.Timeout("타임아웃 2"),
+            mock_success,
+        ]
+
+        result = lambda_function.is_holiday("2025-09-18")
+
+        self.assertTrue(result)
+        self.assertEqual(mock_requests_get.call_count, 3)
+
+    @freeze_time("2025-09-18 10:00:00")
+    @patch('lambda_function.requests.get')
+    def test_holiday_api_retry_exhausted(self, mock_requests_get):
+        """공휴일 API가 3번 모두 타임아웃하면 마지막 예외를 전파"""
+        import requests as req
+        mock_requests_get.side_effect = req.exceptions.Timeout("타임아웃")
+
+        with self.assertRaises(req.exceptions.Timeout):
+            lambda_function.is_holiday("2025-09-18")
+
+        self.assertEqual(mock_requests_get.call_count, 3)
+
+    @freeze_time("2025-09-18 10:00:00")
     @patch('lambda_function.requests.Session')
     @patch('lambda_function.send_telegram_message')
     def test_vacation_invalid_date_format(self, mock_send_telegram, mock_session):

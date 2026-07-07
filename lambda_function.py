@@ -28,12 +28,21 @@ def send_telegram_message(text):
 def is_holiday(today_str):
     """공공데이터포털 API를 이용해 오늘이 공휴일인지 확인하는 함수"""
     year = today_str[:4]
-    url = f"http://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getRestDeInfo?serviceKey={HOLIDAY_API_KEY}&solYear={year}&_type=json&numOfRows=100"
-    response = requests.get(url, timeout=10)
-    response.raise_for_status()
-    items = response.json().get('response', {}).get('body', {}).get('items', {}).get('item', [])
-    holiday_dates = [str(item['locdate']) for item in items]
-    return today_str.replace("-", "") in holiday_dates
+    url = f"https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getRestDeInfo?serviceKey={HOLIDAY_API_KEY}&solYear={year}&_type=json&numOfRows=100"
+    # 공공데이터포털 API는 응답 지연이 잦아 최대 3회 재시도
+    max_retries = 3
+    last_error = None
+    for attempt in range(1, max_retries + 1):
+        try:
+            response = requests.get(url, timeout=15)
+            response.raise_for_status()
+            items = response.json().get('response', {}).get('body', {}).get('items', {}).get('item', [])
+            holiday_dates = [str(item['locdate']) for item in items]
+            return today_str.replace("-", "") in holiday_dates
+        except requests.exceptions.RequestException as e:
+            last_error = e
+            print(f"[WARN] 공휴일 API 호출 실패 (시도 {attempt}/{max_retries}): {e}")
+    raise last_error
 
 def is_vacation_on_intranet(session, today_str):
     """인트라넷 휴가 페이지를 크롤링하여 오늘이 휴가일인지 확인하는 함수"""
