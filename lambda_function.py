@@ -89,10 +89,13 @@ def run_clock_in_process(today_str):
         attend_res = session.post(INTRANET_ATTEND_URL)
         attend_res.raise_for_status()
         result_json = attend_res.json()
+        msg = result_json.get('msg', '')
         if result_json.get('status') == 'success':
             return "✅ 출근 체크 성공!"
+        elif '이미 등록' in msg:
+            return "✅ 이미 출근 체크가 완료되어 있습니다."
         else:
-            return f"❌ 출근 체크 실패!\n서버 메시지: {result_json.get('msg', '알 수 없는 오류')}"
+            return f"❌ 출근 체크 실패!\n서버 메시지: {msg or '알 수 없는 오류'}"
     except requests.exceptions.RequestException as e:
         return f"❌ 출근 체크 실패!\n이유: 네트워크 오류가 발생했습니다. ({e})"
     except Exception as e:

@@ -239,6 +239,33 @@ class TestLambdaFunction(unittest.TestCase):
     @freeze_time("2025-09-18 10:00:00")
     @patch('lambda_function.requests.Session')
     @patch('lambda_function.send_telegram_message')
+    def test_attend_already_registered(self, mock_send_telegram, mock_session):
+        """이미 출근 체크가 완료된 경우 실패가 아닌 완료 메시지 전송"""
+        mock_login_response = Mock()
+        mock_login_response.status_code = 200
+        mock_login_response.text = "<html>메인 페이지</html>"
+
+        mock_attend_response = Mock()
+        mock_attend_response.status_code = 200
+        mock_attend_response.json.return_value = {'msg': '이미 등록 되었습니다. : 02'}
+
+        mock_vacation_response = Mock()
+        mock_vacation_response.status_code = 200
+        mock_vacation_response.text = VACATION_HTML_EMPTY
+
+        mock_session.return_value.post.side_effect = [mock_login_response, mock_attend_response]
+        mock_session.return_value.get.return_value = mock_vacation_response
+
+        with patch('lambda_function.is_holiday', return_value=False):
+            lambda_function.lambda_handler({}, {})
+
+        sent_message = mock_send_telegram.call_args[0][0]
+        self.assertIn("이미 출근 체크가 완료", sent_message)
+        self.assertNotIn("❌", sent_message)
+
+    @freeze_time("2025-09-18 10:00:00")
+    @patch('lambda_function.requests.Session')
+    @patch('lambda_function.send_telegram_message')
     def test_network_timeout(self, mock_send_telegram, mock_session):
         """네트워크 타임아웃 발생 시 실패 메시지 전송"""
         import requests as req
